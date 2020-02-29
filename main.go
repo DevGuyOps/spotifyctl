@@ -10,6 +10,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/zmb3/spotify"
 )
@@ -27,6 +28,7 @@ var (
 
 func main() {
 	// getToken()
+
 	client := newClient()
 
 	// use the client to make calls that require authorization
@@ -34,24 +36,38 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("You are logged in as:", user.ID)
 
-	// Get Playlists
-	playlists, _ := client.GetPlaylistsForUser(user.ID)
-	// for _, playlist := range playlists.Playlists {
-	// 	fmt.Printf("%s -> %s\n", playlist.Name, playlist.URI)
-	// }
+	cmd := os.Args[1]
+	switch cmd {
+	case "next":
+		client.Next()
 
-	// Play playlist
-	playlistName := "Hardstyle"
-	for _, playlist := range playlists.Playlists {
-		if playlist.Name == playlistName {
-			fmt.Println(playlist.Name)
-			err := client.PlayOpt(&spotify.PlayOptions{
-				PlaybackContext: &playlist.URI,
-			})
-			if err != nil {
-				fmt.Println(err)
+	case "previous":
+		client.Previous()
+	case "play":
+		client.Play()
+
+	case "pause":
+		client.Pause()
+
+	case "playlists":
+		playlists, _ := client.GetPlaylistsForUser(user.ID)
+		for _, playlist := range playlists.Playlists {
+			fmt.Printf("%s\n", playlist.Name)
+		}
+
+	case "playlist":
+		playlistName := os.Args[2]
+		playlists, _ := client.GetPlaylistsForUser(user.ID)
+		for _, playlist := range playlists.Playlists {
+			if playlist.Name == playlistName {
+				fmt.Println(playlist.Name)
+				err := client.PlayOpt(&spotify.PlayOptions{
+					PlaybackContext: &playlist.URI,
+				})
+				if err != nil {
+					fmt.Println(err)
+				}
 			}
 		}
 	}
