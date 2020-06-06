@@ -1,4 +1,4 @@
-package main
+package spotifyctl
 
 import (
 	"encoding/json"
@@ -12,17 +12,37 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func getToken() {
-	// first start an HTTP server
+const redirectURI = "http://localhost:8080/callback"
+
+var (
+	server *http.Server
+	auth   = spotify.NewAuthenticator(
+		redirectURI,
+		spotify.ScopeUserReadPrivate,
+		spotify.ScopePlaylistReadPrivate,
+		spotify.ScopePlaylistReadCollaborative,
+		spotify.ScopeUserModifyPlaybackState,
+		spotify.ScopeUserReadPlaybackState,
+		spotify.ScopeUserLibraryRead,
+		spotify.ScopeUserLibraryModify,
+	)
+	state = ""
+)
+
+func SetupTokenServer() {
 	http.HandleFunc("/callback", writeTokenToFile)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Got request for:", r.URL.String())
 	})
 
+	server = &http.Server{
+		Addr:    ":8080",
+		Handler: http.DefaultServeMux,
+	}
 	url := auth.AuthURL(state)
 	fmt.Println("Please log in to Spotify by visiting the following page in your browser:", url)
 
-	http.ListenAndServe(":8080", nil)
+	log.Fatal(server.ListenAndServe())
 }
 
 func writeTokenToFile(w http.ResponseWriter, r *http.Request) {
@@ -38,15 +58,30 @@ func writeTokenToFile(w http.ResponseWriter, r *http.Request) {
 
 	// Write token to file
 	file, _ := json.MarshalIndent(tok, "", " ")
-	_ = ioutil.WriteFile("token.json", file, 0644)
 
-	fmt.Println("Token written to file: token.json")
-}
-
-func newClient() spotify.Client {
-	jsonFile, err := os.Open("token.json")
+	// Create config dir
+	err = os.MkdirAll(getTokenDir(), os.ModePerm)
 	if err != nil {
 		fmt.Println(err)
+	}
+
+	err = ioutil.WriteFile(getTokenPath(), file, 0644)
+	if err != nil {
+		fmt.Printf("Err writing token: %s\n", err)
+		return
+	}
+
+	fmt.Printf("Token written to file: %s\n", getTokenPath())
+	fmt.Println("Enjoy using spotifyctl!")
+
+	// Close the server because we are done with it
+	server.Close()
+}
+
+func NewClient() (*spotify.Client, error) {
+	jsonFile, err := os.Open(getTokenPath())
+	if err != nil {
+		return nil, err
 	}
 
 	defer jsonFile.Close()
@@ -56,5 +91,19 @@ func newClient() spotify.Client {
 	var token *oauth2.Token
 	json.Unmarshal(byteValue, &token)
 
-	return auth.NewClient(token)
+	client := auth.NewClient(token)
+	return &client, nil
+}
+
+func getTokenPath() string {
+	return getTokenDir() + "/token.json"
+}
+
+func getTokenDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	return home + "/.config/spotifyctl"
 }
