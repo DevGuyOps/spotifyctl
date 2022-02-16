@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/GuySWatson/spotifyctl"
+	"github.com/GuySWatson/spotifyctl/pkg/spotifyctl"
 	"github.com/urfave/cli/v2"
 )
 
